@@ -236,3 +236,16 @@ def test_apply_amendment_adds_a_superseding_plan_version(tmp_path):
     assert stored[0]["amends"] == "C-1001"
     assert stored[0]["start_date"] == "2025-07-01"
     assert ctx.load_ledger().plans  # the overlay loads
+
+
+@needs_real
+def test_every_pending_kind_has_the_same_shape(tmp_path):
+    """Make-good, credit memo, amendment and rollback proposals carry the same keys, so the UI can rely on them."""
+    ctx = real_ctx(tmp_path)
+    make_good = propose.propose_make_good_invoice(ctx, plan_id="C-1001", period_start="2025-09-01")["__pending__"]
+    amendment = propose.propose_plan_amendment(ctx, plan_id="C-1010", effective_date="2025-07-01", new_total="130000")["__pending__"]
+    write.apply_pending(ctx, make_good)
+    rollback = propose.propose_rollback(ctx)["__pending__"]
+    assert set(make_good) <= set(rollback), "rollback is missing keys the other proposals have"
+    assert set(make_good) <= set(amendment), "amendment is missing keys the other proposals have"
+    assert rollback["warnings"] == [] and isinstance(rollback["calculation"], list)

@@ -45,3 +45,14 @@ describe("ProposalCard", () => {
     expect((screen.getByRole("button", { name: "Reject" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe("ProposalCard with a rollback proposal", () => {
+  // Regression: rollback proposals used to omit `warnings`, which crashed the card.
+  it("renders when optional lists are missing", () => {
+    const rollback = { ...proposal, action_kind: "rollback" as const, amount: null } as unknown as Proposal;
+    delete (rollback as Partial<Proposal>).warnings;
+    delete (rollback as Partial<Proposal>).calculation;
+    render(<ProposalCard proposal={rollback} busy={false} onApprove={() => {}} onReject={() => {}} />);
+    expect(screen.getByText("Rollback")).toBeTruthy();
+  });
+});

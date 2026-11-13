@@ -143,15 +143,22 @@ def propose_rollback(ctx: ToolContext, action_id: str | None = None) -> dict[str
     if entry is None:
         raise ProposalError(f"no applied action {action_id}")
     title = f"rollback of {entry['action_id']}"
+    # Same shape as every other pending proposal (see draft_view), so the UI never meets a missing key.
     pending = {
-        "proposal_id": uuid4().hex[:12],
-        "summary_title": title,
         "action_kind": "rollback",
         "plan_id": entry["plan_id"],
-        "target_action_id": entry["action_id"],
-        "reason": f"Undo {entry['kind']} {entry['action_id']}: {entry['summary']}",
         "amount": None,
+        "target_invoice_id": None,
+        "period_start": None,
+        "period_end": None,
+        "reason": f"Undo {entry['kind']} {entry['action_id']}: {entry['summary']}",
         "calculation": [f"Applied at {entry['applied_at']}", f"Removes {entry['table']} record {entry['key_value']}"],
+        "finding_id": None,
+        "warnings": [],
+        "change_set": None,
+        "proposal_id": uuid4().hex[:12],
+        "summary_title": title,
+        "target_action_id": entry["action_id"],
         "args": {"action_id": entry["action_id"]},
     }
     return {"proposal": pending, "awaiting_approval": True, "__pending__": pending}

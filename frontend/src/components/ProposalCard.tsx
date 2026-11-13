@@ -50,17 +50,17 @@ export function ProposalCard({ proposal, busy, onApprove, onReject }: Props) {
         )}
       </dl>
       <p className="reason">{proposal.reason}</p>
-      {proposal.calculation.length > 0 && (
+      {(proposal.calculation ?? []).length > 0 && (
         <details open>
           <summary>How this was calculated</summary>
           <ol className="calc">
-            {proposal.calculation.map((line, i) => (
+            {(proposal.calculation ?? []).map((line, i) => (
               <li key={i}>{line}</li>
             ))}
           </ol>
         </details>
       )}
-      {proposal.warnings.map((w, i) => (
+      {(proposal.warnings ?? []).map((w, i) => (
         <div className="warning" key={i}>{w}</div>
       ))}
       <div className="actions">
