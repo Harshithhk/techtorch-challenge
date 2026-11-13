@@ -3,7 +3,7 @@
 A stateful, conversational "financial detective". It investigates billing plans against invoices, explains what it finds with the calculation behind each figure, and proposes corrections. Every correction is a proposal. Nothing is written to the sandbox until a human approves it in the chat.
 
 - **Live API docs:** `backend/` → `uvicorn app.main:app`, then open `/docs`. A static copy is in [`docs/architecture/openapi.json`](docs/architecture/openapi.json).
-- **Agent graph:** [`docs/architecture/agent_graph.md`](docs/architecture/agent_graph.md) (Mermaid and ASCII, generated from the compiled graph).
+- **Agent graph and tools:** see [Agent graph](#agent-graph) and [Tools](#tools) below.
 - **How gaps are detected:** [`docs/architecture/business_logic.md`](docs/architecture/business_logic.md).
 
 ## Quick start
@@ -57,6 +57,103 @@ backend/app
 7. **Follow-ups resolve from state.** The plan in focus, the as-of date and the pending proposal are part of the graph state. "What currency is that plan in?" resolves to the last plan loaded, with no plan id in the question.
 8. **Dummy login maps a user id to a stable thread.** The thread id is `uuid5(user_id)`, so logging in again resumes the same conversation. The server resolves the thread, so the client never sends one.
 9. **Claude models from the brief's naming.** `claude-sonnet-5-5` runs the agent and `claude-haiku-5-5` runs the guard classifier. Both are configured in `.env`.
+
+## Agent graph
+
+Generated from the compiled LangGraph by `backend/scripts/export_docs.py`. Full output: [`docs/architecture/agent_graph.md`](docs/architecture/agent_graph.md).
+
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	guard(guard)
+	agent(agent)
+	tools(tools)
+	gate(gate)
+	grounding(grounding)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> guard;
+	agent -.-> grounding;
+	agent -.-> tools;
+	gate --> agent;
+	grounding -. &nbsp;end&nbsp; .-> __end__;
+	grounding -.-> agent;
+	guard -. &nbsp;end&nbsp; .-> __end__;
+	guard -.-> agent;
+	tools -.-> agent;
+	tools -.-> gate;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+
+```
+
+ASCII version:
+
+```text
+                     +-----------+                       
+                     | __start__ |                       
+                     +-----------+                       
+                            *                            
+                            *                            
+                            *                            
+                       +-------+                         
+                      .| guard |                         
+                 ..... +-------+                         
+             ....               .                        
+        .....                    ..                      
+   .....                           .                     
+...                             +-------+                
+.                               | agent |*               
+.                             ..+-------+ ***            
+.                          ...       .       ***         
+.                       ...           .         ***      
+.                     ..              .            ***   
+.           +-----------+         +-------+           ** 
+ ..         | grounding |         | tools |          **  
+   ..       +-----------+         +-------+         *    
+     .        .                           .        *     
+      ..    ..                             ..    **      
+        .  .                                 .  *        
+    +---------+                           +------+       
+    | __end__ |                           | gate |       
+    +---------+                           +------+       
+```
+
+| Node | What it does |
+|---|---|
+| `guard` | Resets the turn counters. Refuses injections, off-topic turns and turns the classifier cannot check. Uses the previous assistant message as context, so a short reply such as "yes" is judged in context. |
+| `agent` | Calls the model with the tools bound and the as-of date and plan in focus. Stops after 8 model calls. |
+| `tools` | Runs each requested tool through the registry. A returned proposal becomes the pending one. A second proposal in the same batch is refused. |
+| `gate` | The approval gate. Calls `interrupt()` before any write. Approve re-derives the proposal and writes once. Reject, or any other decision, writes nothing and logs an audit event. |
+| `grounding` | Checks that every money figure and ISO date in the answer appears in a tool result or the user's messages. Allows one rewrite, then falls back to a safe answer. |
+
+## Tools
+
+The model sees 12 tools. They come from `backend/app/tools/registry.py`, and their schemas are generated from the same argument models that validate calls.
+
+| Tool | Kind | Arguments | What it does |
+|---|---|---|---|
+| `load_plan` | read | `plan_id` (optional) | Returns one plan, its amendment family, active windows and expected periods. Puts the plan in focus. |
+| `list_plans` | read | `customer_name` (optional) | Lists plans, optionally for one customer. |
+| `query_invoices` | read | `plan_id`, `customer_name`, `date_from`, `date_to`, `status` (all optional) | Filters invoices by plan, customer, issue-date range or status. |
+| `fx_convert` | read | `amount`, `from_currency`, `to_currency`, `on_date` (optional) | Converts an amount with the domain FX rule and shows the evidence. |
+| `investigate_plan` | analysis | `plan_id` (optional) | Runs every detector live for one plan's family. Returns findings with calculation trails. Puts the plan in focus. |
+| `scan_book` | analysis | none | Runs every detector across all plans. Returns counts, every money finding with ISO periods, the shortfall per currency, and other findings. |
+| `scan_customer` | analysis | `customer_name` | Investigates all plans of a customer, including orphan invoices that point at them. |
+| `set_as_of_date` | state | `as_of` (ISO date) | Changes the investigation date for this conversation. |
+| `propose_make_good_invoice` | propose | `plan_id`, `period_start`, `amount` (all optional) | Drafts a make-good for a missing or underbilled period. Writes nothing until approved. |
+| `propose_credit_memo` | propose | `invoice_id`, `amount` (optional) | Drafts a credit memo for an overbilled invoice. Writes nothing until approved. |
+| `propose_plan_amendment` | propose | `plan_id`, `effective_date`, `new_total`, `new_cadence`, `add_entitlements` | Drafts an amendment effective from a date. Writes nothing until approved. |
+| `propose_rollback` | propose | `action_id` (optional, defaults to the latest applied action) | Drafts an undo of an applied action. Writes nothing until approved. |
+
+**Not exposed to the model:** `apply_pending` and `reject_pending` (`tools/write.py`). Only the approval gate calls them, after a human decision. The write functions are not in the registry, and a test checks that `apply` and `rollback` are never bound to the model.
+
+**Amount rule for every propose tool:** `amount` is optional and can only lower the domain's figure. A larger value is refused.
 
 ## Guardrails
 
