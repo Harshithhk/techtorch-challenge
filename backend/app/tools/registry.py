@@ -50,6 +50,10 @@ class _ScanArgs(_Strict):
     customer_name: str = Field(description="Customer name or part of it.")
 
 
+class _NoArgs(_Strict):
+    """A tool that takes no arguments. Extra keys are rejected."""
+
+
 class _AsOfArgs(_Strict):
     as_of: str = Field(description="ISO date (YYYY-MM-DD) to investigate as of.")
 
@@ -93,6 +97,7 @@ SPECS: tuple[ToolSpec, ...] = (
     ToolSpec("query_invoices", "Find invoices by plan, customer, issue-date range or status.", _QueryArgs, read.query_invoices),
     ToolSpec("fx_convert", "Convert an amount between currencies using the domain FX rule.", _FxArgs, read.fx_convert),
     ToolSpec("investigate_plan", "Run the live investigation for one plan. Returns findings with calculation trails. Puts the plan in focus.", _PlanArg, read.investigate_plan),
+    ToolSpec("scan_book", "Investigate every plan at once. Use for 'all', 'every' or book-wide questions. Returns every money finding with ISO dates.", _NoArgs, read.scan_book),
     ToolSpec("scan_customer", "Investigate all plans of a customer, including orphan invoices that point at them.", _ScanArgs, read.scan_customer),
     ToolSpec("set_as_of_date", "Change the investigation as-of date for this conversation.", _AsOfArgs, read.set_as_of_date),
     ToolSpec("propose_make_good_invoice", "Propose a make-good invoice for a missing or underbilled period. Writes nothing until the user approves.", _MakeGoodArgs, propose.propose_make_good_invoice),

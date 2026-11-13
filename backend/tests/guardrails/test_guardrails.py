@@ -50,9 +50,20 @@ def test_invented_figure_is_flagged():
 
 
 def test_small_integers_and_years_are_exempt():
-    """Days, months, counts and years are not money, so they are never flagged."""
-    answer = "Between 2025-09-01 and 2025-10-01, over 3 periods and 30 days."
-    assert check_grounding(answer, [], []) == []
+    """Days, counts and bare years are not money, so they are never flagged."""
+    assert check_grounding("over 3 periods, 30 days, in 2025", [], []) == []
+
+
+def test_iso_dates_must_come_from_evidence():
+    """A date the tools did not return is flagged. A date they returned is accepted."""
+    answer = "Missing for 2025-09-01 to 2025-10-01."
+    assert check_grounding(answer, [], []) == ["2025-09-01", "2025-10-01"]
+    assert check_grounding(answer, ['{"period_start": "2025-09-01", "period_end": "2025-10-01"}'], []) == []
+
+
+def test_restated_period_range_is_flagged():
+    """A merged range such as 'Mar-Jun 2025' with invented end dates is caught by the ISO check."""
+    assert check_grounding("Missing 2025-03-01 to 2025-07-01.", ['{"period_start": "2025-03-01"}'], []) == ["2025-07-01"]
 
 
 def test_figures_the_user_typed_are_allowed():

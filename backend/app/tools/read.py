@@ -171,6 +171,42 @@ def scan_customer(ctx: ToolContext, customer_name: str) -> dict[str, Any]:
 
 
 @_safe
+def scan_book(ctx: ToolContext) -> dict[str, Any]:
+    """Investigate every plan at once. Use for 'all', 'every' or book-wide questions.
+
+    Returns counts per finding kind, the money findings (one per missing or underbilled or overbilled
+    period, with ISO dates and amounts), the total shortfall per currency, and the other findings.
+    """
+    from collections import Counter
+    from decimal import Decimal
+
+    from app.domain.detectors import FindingKind
+
+    money_kinds = {FindingKind.MISSING_PERIOD, FindingKind.AMOUNT_UNDERBILLED, FindingKind.AMOUNT_OVERBILLED}
+    findings = investigate(ctx.load_ledger(), ctx.as_of, ctx.term_months)
+    money = [f for f in findings if f.kind in money_kinds]
+    other = [f for f in findings if f.kind not in money_kinds]
+
+    shortfall: dict[str, Decimal] = {}
+    for f in money:
+        if f.delta is not None and f.delta.amount < 0:
+            shortfall[f.delta.currency] = shortfall.get(f.delta.currency, Decimal("0")) + (-f.delta.amount)
+
+    return {
+        "as_of": ctx.as_of.isoformat(),
+        "counts": dict(Counter(f.kind.value for f in findings)),
+        "money_findings": [finding_view(f) for f in money],
+        "money_shortfall_total": {ccy: str(v) for ccy, v in shortfall.items()},
+        "other_findings": [
+            {"kind": f.kind.value, "plan_id": f.plan_id, "invoice_ids": list(f.invoice_ids),
+             "candidate_plan_ids": list(f.candidate_plan_ids), "summary": f.summary}
+            for f in other
+        ],
+        "note": "Report every money finding. Quote dates exactly as given (ISO).",
+    }
+
+
+@_safe
 def set_as_of_date(ctx: ToolContext, as_of: str) -> dict[str, Any]:
     """Change the investigation date for this conversation. Later results use the new date."""
     new_date: date = parse_date(as_of, "as_of")

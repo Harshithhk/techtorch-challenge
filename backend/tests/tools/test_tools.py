@@ -249,3 +249,25 @@ def test_every_pending_kind_has_the_same_shape(tmp_path):
     assert set(make_good) <= set(rollback), "rollback is missing keys the other proposals have"
     assert set(make_good) <= set(amendment), "amendment is missing keys the other proposals have"
     assert rollback["warnings"] == [] and isinstance(rollback["calculation"], list)
+
+
+@needs_real
+def test_scan_book_reports_every_money_finding_of_the_real_data(tmp_path):
+    """Across the whole dataset (as-of 2025-12-31): 5 missing and 2 underbilled periods, 94 000 USD short."""
+    ctx = real_ctx(tmp_path)
+    ctx.as_of = date(2025, 12, 31)
+    result = read.scan_book(ctx)
+    assert result["counts"]["missing_period"] == 5
+    assert result["counts"]["amount_underbilled"] == 2
+    money = result["money_findings"]
+    assert len(money) == 7
+    assert result["money_shortfall_total"] == {"USD": "94000.00"}  # 71 500 missing + 22 500 underbilled
+    assert {f["period_start"] for f in money if f["kind"] == "missing_period"} == {
+        "2025-09-01", "2025-11-01", "2025-12-01", "2025-03-01", "2025-10-01"}
+    assert any(o["invoice_ids"] == ["I-9202"] for o in result["other_findings"])
+
+
+def test_registry_has_scan_book(tmp_path):
+    """The model can call scan_book, and it takes no arguments."""
+    from app.tools.registry import LLM_TOOL_NAMES
+    assert "scan_book" in LLM_TOOL_NAMES

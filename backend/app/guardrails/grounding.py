@@ -38,14 +38,21 @@ def _exempt(value: Decimal) -> bool:
     return False
 
 
+_ISO_DATE = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)")
+
+
 def check_grounding(answer: str, tool_texts: list[str], user_texts: list[str]) -> list[str]:
-    """Figures in `answer` that no tool result or user message contains.
+    """Figures and ISO dates in `answer` that no tool result or user message contains.
 
     Input: draft answer, raw tool-result strings from this turn, user messages from this turn.
-    Output: sorted list of unsupported figures as written (empty means grounded).
+    Output: sorted list of unsupported items as written (empty means grounded).
+    Dates must appear verbatim (YYYY-MM-DD). Money figures are compared by value.
     """
+    evidence = [*tool_texts, *user_texts]
+    unsupported_dates = sorted({d for d in _ISO_DATE.findall(answer) if not any(d in t for t in evidence)})
+    answer = _ISO_DATE.sub(" ", answer)
     supported: set[Decimal] = set()
-    for text in [*tool_texts, *user_texts]:
+    for text in evidence:
         supported.update(extract_numbers(text))
     unsupported: set[str] = set()
     for token in _NUMBER.findall(_IDENTIFIER.sub(" ", answer)):
@@ -53,4 +60,4 @@ def check_grounding(answer: str, tool_texts: list[str], user_texts: list[str]) -
         if value in supported or _exempt(value):
             continue
         unsupported.add(token)
-    return sorted(unsupported)
+    return sorted(unsupported_dates) + sorted(unsupported)
