@@ -53,15 +53,19 @@ def _pending_from(snapshot: Any) -> dict[str, Any] | None:
 
 
 class AgentService:
-    """Send messages, decide proposals, and read history. Input: compiled graph, default as-of date."""
+    """Send messages, decide proposals, and read history. Input: compiled graph, default as-of date, optional callbacks."""
 
-    def __init__(self, graph: Any, default_as_of: date) -> None:
+    def __init__(self, graph: Any, default_as_of: date, callbacks: list[Any] | None = None) -> None:
         self._graph = graph
         self._default_as_of = default_as_of
+        self._callbacks = list(callbacks or [])
 
-    @staticmethod
-    def _config(thread_id: str) -> dict[str, Any]:
-        return {"configurable": {"thread_id": thread_id}}
+    def _config(self, thread_id: str) -> dict[str, Any]:
+        """Run config: which thread, plus any tracing callbacks (empty when Langfuse is off)."""
+        config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+        if self._callbacks:
+            config["callbacks"] = self._callbacks
+        return config
 
     async def send(self, thread_id: str, user_id: str, text: str) -> TurnResult:
         """Process one user message in a thread. Refused while a proposal is waiting."""
