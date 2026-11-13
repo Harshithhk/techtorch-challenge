@@ -46,8 +46,7 @@ def build_graph(deps: AgentDeps, checkpointer: BaseCheckpointSaver):
 
     graph = StateGraph(AgentState)
     for name, fn in nodes.items():
-        graph.add_node(name, fn)
-    graph.add_node("gate", nodes["approval_gate"])
+        graph.add_node("gate" if name == "approval_gate" else name, fn)
     graph.add_edge(START, "guard")
     graph.add_conditional_edges("guard", route_after_guard, {"agent": "agent", "end": END})
     graph.add_conditional_edges("agent", route_after_agent, {"tools": "tools", "grounding": "grounding"})

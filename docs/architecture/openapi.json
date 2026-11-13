@@ -1,0 +1,582 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Revenue Leakage Agent API",
+    "description": "Stateful investigation agent for billing plans, invoices and revenue leakage. Every change is a proposal that waits for a human decision (approve or reject). Identify yourself with the `X-User-Id` header after `POST /auth/login`.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health and LLM status",
+        "description": "Liveness and whether the assistant has a model configured.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Dummy login",
+        "description": "Dummy login: creates the user if new and returns the thread id that holds the conversation.",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Send a message",
+        "description": "Send a message in the caller's conversation. May return awaiting_approval with a proposal.",
+        "operationId": "chat_chat_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown X-User-Id. Log in first."
+          },
+          "422": {
+            "description": "Invalid request body."
+          },
+          "503": {
+            "description": "No model configured (ANTHROPIC_API_KEY is not set)."
+          }
+        }
+      }
+    },
+    "/chat/resume": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Approve or reject the waiting proposal",
+        "description": "Approve or reject the caller's waiting proposal. Nothing is written on reject.",
+        "operationId": "resume_chat_resume_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown X-User-Id. Log in first."
+          },
+          "422": {
+            "description": "Invalid request body."
+          },
+          "503": {
+            "description": "No model configured (ANTHROPIC_API_KEY is not set)."
+          }
+        }
+      }
+    },
+    "/chat/history": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Visible chat history",
+        "description": "The caller's visible chat history.",
+        "operationId": "history_chat_history_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown X-User-Id. Log in first."
+          },
+          "422": {
+            "description": "Invalid request body."
+          },
+          "503": {
+            "description": "No model configured (ANTHROPIC_API_KEY is not set)."
+          }
+        }
+      }
+    },
+    "/chat/pending": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Proposal waiting for a decision",
+        "description": "The proposal waiting for the caller's decision, if any.",
+        "operationId": "pending_chat_pending_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown X-User-Id. Log in first."
+          },
+          "422": {
+            "description": "Invalid request body."
+          },
+          "503": {
+            "description": "No model configured (ANTHROPIC_API_KEY is not set)."
+          }
+        }
+      }
+    },
+    "/audit-log": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Append-only audit trail",
+        "description": "The append-only sandbox audit trail, oldest first.",
+        "operationId": "audit_log_audit_log_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown X-User-Id. Log in first."
+          },
+          "422": {
+            "description": "Invalid request body."
+          },
+          "503": {
+            "description": "No model configured (ANTHROPIC_API_KEY is not set)."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuditOut": {
+        "properties": {
+          "events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "title": "AuditOut"
+      },
+      "ChatIn": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatIn"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "llm_configured": {
+            "type": "boolean",
+            "title": "Llm Configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "llm_configured"
+        ],
+        "title": "HealthOut"
+      },
+      "HistoryOut": {
+        "properties": {
+          "messages": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "HistoryOut"
+      },
+      "LoginIn": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.@-]{1,64}$",
+            "title": "User Id",
+            "description": "Dummy login: any id of 1-64 safe characters."
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "LoginIn"
+      },
+      "LoginOut": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "thread_id"
+        ],
+        "title": "LoginOut"
+      },
+      "PendingOut": {
+        "properties": {
+          "pending": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending"
+        ],
+        "title": "PendingOut"
+      },
+      "ResumeIn": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "ResumeIn"
+      },
+      "TurnOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reply"
+        ],
+        "title": "TurnOut",
+        "description": "One conversation step. status is answered | awaiting_approval | blocked | busy | decided | no_pending."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "system",
+      "description": "Liveness and configuration status."
+    },
+    {
+      "name": "auth",
+      "description": "Dummy login. Maps a user id to a stable conversation thread."
+    },
+    {
+      "name": "chat",
+      "description": "Conversation with the agent, approval decisions, history and the audit trail."
+    }
+  ]
+}

@@ -96,7 +96,21 @@ def create_app(
             app.state.observability = observability
             yield
 
-    app = FastAPI(title="Revenue Leakage Agent", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Revenue Leakage Agent API",
+        version="0.1.0",
+        description=(
+            "Stateful investigation agent for billing plans, invoices and revenue leakage. "
+            "Every change is a proposal that waits for a human decision (approve or reject). "
+            "Identify yourself with the `X-User-Id` header after `POST /auth/login`."
+        ),
+        openapi_tags=[
+            {"name": "system", "description": "Liveness and configuration status."},
+            {"name": "auth", "description": "Dummy login. Maps a user id to a stable conversation thread."},
+            {"name": "chat", "description": "Conversation with the agent, approval decisions, history and the audit trail."},
+        ],
+        lifespan=lifespan,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
