@@ -29,6 +29,13 @@ We should not precompute any findings or store any computed values.
 **Result:** uv backend project, `app/settings.py` (pydantic-settings), `.env.example`, `.gitignore`, `docker-compose.yml` (Postgres 16 on host port 5433), settings tests passing, Postgres connection verified.
 **Follow-up:** Host port 5432 was already held by a local Homebrew Postgres, so the compose mapping moved to 5433.
 
+### Prompt 3
+**Tool Used:** Claude Code
+**Context:** Phase 1 (domain core): money, FX, schedule, detectors, proposals, tests. Commit after each module.
+**Prompt:** "Proceed to phase 1. Make sure you commit after each phase or after completing meaningful modules."
+**Result:** Pure Decimal domain with 62 tests. Scenario tests check the four real JSON files against hand-worked expectations. Findings are computed live, nothing is stored. Four commits in total.
+**Follow-up:** Fixed three test-side mistakes (a wrong expected id, a fixture with one gap instead of three, a weak assertion). The domain code itself did not need changes.
+
 ---
 
 **Note:** Entries are appended per phase. Reflection on tool effectiveness will be added at the end of the project.
