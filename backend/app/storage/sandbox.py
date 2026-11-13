@@ -63,7 +63,11 @@ class SandboxStore:
         path = self._dir / name
         if not path.exists():
             return []
-        data = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        if not text.strip():
+            # Writes always produce complete JSON, so an empty file holds no data. Treat it as empty.
+            return []
+        data = json.loads(text)  # corrupt non-empty content raises, so it is never silently overwritten
         if not isinstance(data, list):
             raise SandboxConflictError(f"sandbox file {name} is not a JSON array")
         return data

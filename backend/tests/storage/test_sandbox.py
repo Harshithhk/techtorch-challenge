@@ -102,3 +102,21 @@ def test_amounts_stored_as_strings_keep_decimal_precision(store):
     store.commit_action(action_id="ACT-1", kind="make_good_invoice", table="invoices",
                         record=rec, plan_id="C-1001", summary="s", user_id="alice")
     assert Decimal(store.read_records("invoices")[0]["amount_invoiced"]) == Decimal("8000.10")
+
+
+def test_empty_audit_file_is_read_as_no_events(store):
+    """A zero-byte audit file (seen in practice) holds no events, so reads and writes must still work."""
+    store.directory.mkdir(parents=True, exist_ok=True)
+    (store.directory / "audit_log.json").write_text("")
+    assert store.read_audit() == []
+    store.log_rejection(action_id="ACT-9", kind="credit_memo", plan_id="C-1", summary="s", user_id="u")
+    assert [e["event"] for e in store.read_audit()] == ["rejected"]
+
+
+def test_corrupt_audit_file_is_never_overwritten(store):
+    """Non-empty corrupt history must raise, not be replaced by a fresh log."""
+    store.directory.mkdir(parents=True, exist_ok=True)
+    (store.directory / "audit_log.json").write_text("[{\"event\": ")
+    with pytest.raises(json.JSONDecodeError):
+        store.log_rejection(action_id="ACT-9", kind="credit_memo", plan_id="C-1", summary="s", user_id="u")
+    assert (store.directory / "audit_log.json").read_text() == "[{\"event\": "

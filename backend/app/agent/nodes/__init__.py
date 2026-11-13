@@ -151,13 +151,17 @@ def make_nodes(deps: AgentDeps, bound_llm: Any) -> dict[str, Callable[[AgentStat
         answer = interrupt({"kind": "approval_required", "proposal": pending})
         decision = answer.get("decision") if isinstance(answer, dict) else answer
         ctx = _ctx(state, deps, None)
-        if decision == "approve":
-            try:
+        # Always clear the pending proposal, even if recording the decision fails. Otherwise the thread
+        # stays stuck on "waiting for approval" with no way out.
+        try:
+            if decision == "approve":
                 result = apply_pending(ctx, pending)
-            except DomainError as exc:
-                result = {"status": "refused", "reason": str(exc)}
-        else:
-            result = reject_pending(ctx, pending)
+            else:
+                result = reject_pending(ctx, pending)
+        except DomainError as exc:
+            result = {"status": "refused", "reason": str(exc)}
+        except Exception as exc:  # storage or I/O failure: report it, do not hang the conversation
+            result = {"status": "error", "reason": f"could not record the decision ({exc.__class__.__name__})"}
         note = HumanMessage(content=f"[approval gate] {json.dumps(result, default=str)}", additional_kwargs={"kind": "gate"})
         return {"pending": None, "messages": [note]}
 

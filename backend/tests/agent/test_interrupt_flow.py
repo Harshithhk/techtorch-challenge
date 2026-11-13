@@ -123,3 +123,18 @@ async def test_decide_without_pending_says_so(tmp_path):
     result = await service.decide("t-none", "approve")
     assert result.status == "no_pending"
     assert store.read_records("invoices") == []
+
+
+async def test_reject_still_clears_the_proposal_if_recording_fails(tmp_path, monkeypatch):
+    """If the audit write fails, the reject still clears the pending proposal and reports the error."""
+    service, _, llm, store = build(tmp_path, [tool_call(*MAKE_GOOD), say("Something went wrong recording that.")])
+    await service.send("t-broken", "alice", "Make good September")
+
+    def broken(**_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "log_rejection", broken)
+    result = await service.decide("t-broken", "reject")
+    assert result.status == "answered"
+    assert await service.pending("t-broken") is None
+    assert store.read_records("invoices") == []
