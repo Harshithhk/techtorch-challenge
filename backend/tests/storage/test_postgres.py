@@ -23,8 +23,18 @@ pytestmark = [
 ]
 
 
-async def test_login_is_idempotent_and_thread_id_is_stable():
+@pytest.fixture
+async def cleanup_users():
+    """Test users are removed afterwards, so the app database stays free of test data."""
+    created: list[str] = []
+    yield created
+    with psycopg.connect(URL, autocommit=True) as conn:
+        conn.execute("DELETE FROM users WHERE user_id = ANY(%s)", (created,))
+
+
+async def test_login_is_idempotent_and_thread_id_is_stable(cleanup_users):
     """Logging in twice returns the same thread id, which matches the deterministic function."""
+    cleanup_users.append("test-user-stable")
     repo = UserRepository(URL)
     await repo.ensure_schema()
     first = await repo.login("test-user-stable")
