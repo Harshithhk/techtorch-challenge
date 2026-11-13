@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rla
+      POSTGRES_PASSWORD: rla
+      POSTGRES_DB: rla
+    ports:
+      - "5433:5432"
+    volumes:
+      - rla_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rla -d rla"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  rla_pgdata:

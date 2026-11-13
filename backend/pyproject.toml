@@ -1,0 +1,37 @@
+[project]
+name = "revenue-leakage-agent"
+version = "0.1.0"
+description = "Stateful revenue-leakage investigation agent (FastAPI + LangGraph)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.162.7",
+    "httpx>=0.28.1",
+    "langchain-anthropic>=1.7.10",
+    "langchain-core>=1.8.0",
+    "langfuse>=5.2.0",
+    "langgraph>=1.2.21",
+    "langgraph-checkpoint-postgres>=3.2.0",
+    "psycopg[binary]>=3.3.9",
+    "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.3",
+    "uvicorn>=0.54.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "live: calls the real LLM provider; skipped unless RUN_LIVE_TESTS=1",
+    "postgres: needs the docker-compose Postgres; skipped if DATABASE_URL is unreachable",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+]
