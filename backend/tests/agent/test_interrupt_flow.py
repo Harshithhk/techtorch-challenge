@@ -21,6 +21,8 @@ async def test_proposal_pauses_the_graph_and_writes_nothing(tmp_path):
 
     assert result.status == "awaiting_approval"
     assert result.pending["amount"] == {"amount": "8000.00", "currency": "USD"}
+    assert "8000.00" not in result.pending["summary_title"]  # the card shows the amount; the title does not repeat it
+    assert result.reply.count("8000.00") == 0
     assert store.read_records("invoices") == []
     assert store.read_audit() == []
     assert (await service.pending("t-pause"))["action_kind"] == "make_good_invoice"

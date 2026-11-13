@@ -64,3 +64,9 @@ def test_log_records_are_scrubbed():
 def test_tracing_is_off_without_keys():
     """With no Langfuse keys, no client is built and nothing is sent anywhere."""
     assert build_observability(Settings(_env_file=None, langfuse_public_key="", langfuse_secret_key=""), PiiScrubber()) is None
+
+
+def test_langfuse_host_accepts_the_base_url_name(monkeypatch):
+    """The .env file uses LANGFUSE_BASE_URL; the setting must read it, not silently fall back to the default."""
+    monkeypatch.setenv("LANGFUSE_BASE_URL", "https://eu.example.test")
+    assert Settings(_env_file=None).langfuse_host == "https://eu.example.test"

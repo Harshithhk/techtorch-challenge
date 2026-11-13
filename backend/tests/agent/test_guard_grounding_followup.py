@@ -101,3 +101,31 @@ async def test_history_shows_user_and_assistant_turns_only(tmp_path):
     history = await service.history("t-hist")
     assert [h["role"] for h in history] == ["user", "assistant"]
     assert history[1]["content"] == "C-1010 is an annual USD plan."
+
+
+async def test_classifier_failure_fails_closed(tmp_path):
+    """If the classifier errors, the turn is refused and nothing reaches the model or the tools."""
+    def broken(_text):
+        raise RuntimeError("classifier timeout")
+
+    service, _, llm, _ = build(tmp_path, [], classifier=broken)
+    result = await service.send("t-closed", "alice", "Make good September for C-1001")
+    assert result.status == "blocked"
+    assert result.reply == REFUSALS["unavailable"]
+    assert llm.seen == []
+
+
+async def test_thinking_blocks_never_reach_the_user(tmp_path):
+    """A structured reply with thinking and text blocks shows only the text."""
+    from langchain_core.messages import AIMessage
+
+    structured = AIMessage(content=[
+        {"type": "thinking", "thinking": "internal reasoning", "signature": "SIG123"},
+        {"type": "text", "text": "C-1001 is a USD plan."},
+    ])
+    service, _, _, _ = build(tmp_path, [structured])
+    result = await service.send("t-think", "alice", "What is C-1001?")
+    assert result.reply == "C-1001 is a USD plan."
+    history = await service.history("t-think")
+    assert history[-1]["content"] == "C-1001 is a USD plan."
+    assert "SIG123" not in result.reply

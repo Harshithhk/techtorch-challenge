@@ -58,3 +58,10 @@ def test_small_integers_and_years_are_exempt():
 def test_figures_the_user_typed_are_allowed():
     """A number the user dictated (e.g. 5000) may be repeated back."""
     assert check_grounding("I'll draft 5000 USD.", [], ["make it 5000"]) == []
+
+
+def test_identifiers_are_not_mistaken_for_money():
+    """Plan, invoice and action ids contain digits but are not figures, so they never trigger a regeneration."""
+    answer = "Plan C-1001 and C-1007-A1, invoice I-9010, action ACT-41AC218E87."
+    assert check_grounding(answer, [], []) == []
+    assert extract_numbers("C-1001 owes 8000.00") == [Decimal("8000.00")]

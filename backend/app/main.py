@@ -37,7 +37,7 @@ def _default_llm(settings: Settings, model: str) -> BaseChatModel | None:
         return None
     from langchain_anthropic import ChatAnthropic
 
-    return ChatAnthropic(model=model, api_key=settings.anthropic_api_key, temperature=0)
+    return ChatAnthropic(model=model, api_key=settings.anthropic_api_key)
 
 
 def create_app(

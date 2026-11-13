@@ -7,6 +7,7 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/settings.py -> parents[2] is the repo root
@@ -39,7 +40,10 @@ class Settings(BaseSettings):
     # Langfuse is a no-op when keys are empty (offline dev and tests).
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
-    langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("LANGFUSE_HOST", "LANGFUSE_BASE_URL"),
+    )
 
     # Browser origins allowed to call the API (the Vite dev server by default).
     cors_origins: list[str] = ["http://localhost:5173"]

@@ -28,7 +28,7 @@ async def test_live_model_investigates_and_answers(tmp_path):
     """The real model calls investigate_plan for C-1001 and returns a non-empty answer."""
     from langchain_anthropic import ChatAnthropic
 
-    llm = ChatAnthropic(model=settings.agent_model, api_key=settings.anthropic_api_key, temperature=0)
+    llm = ChatAnthropic(model=settings.agent_model, api_key=settings.anthropic_api_key)
     deps = AgentDeps(llm=llm, load_ledger=lambda: load_ledger(settings.data_dir, tmp_path / "sb"),
                      sandbox=SandboxStore(tmp_path / "sb"), term_months=12, default_as_of=date(2025, 12, 31))
     service = AgentService(build_graph(deps, InMemorySaver()), deps.default_as_of)

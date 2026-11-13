@@ -72,7 +72,7 @@ def propose_make_good_invoice(
     requested = _decimal(amount, "amount")
     draft = domain.propose_make_good(findings, pid, start, requested)
     args = {"plan_id": pid, "period_start": draft.period_start.isoformat(), "requested_amount": str(requested) if requested is not None else None}
-    title = f"make-good {draft.amount} for {pid}"
+    title = f"make-good for {pid}"
     pending = _pending(draft, args, title)
     return {"proposal": pending, "awaiting_approval": True, "__pending__": pending, "__state__": {"active_plan_id": pid}}
 
@@ -91,7 +91,7 @@ def propose_credit_memo(ctx: ToolContext, invoice_id: str, amount: str | None = 
     requested = _decimal(amount, "amount")
     draft = domain.propose_credit_memo(findings, invoice_id, requested)
     args = {"invoice_id": invoice_id, "requested_amount": str(requested) if requested is not None else None}
-    title = f"credit memo {draft.amount} against {invoice_id}"
+    title = f"credit memo against {invoice_id}"
     pending = _pending(draft, args, title)
     return {"proposal": pending, "awaiting_approval": True, "__pending__": pending, "__state__": {"active_plan_id": draft.plan_id}}
 

@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
 from app.agent.prompts import PENDING_WAITING
+from app.agent.text import message_text
 
 
 @dataclass(frozen=True)
@@ -30,15 +31,13 @@ class TurnResult:
 
 def _draft_text(pending: dict[str, Any]) -> str:
     """Deterministic one-liner for a new proposal. The model's explanation follows after approval."""
-    amount = pending.get("amount")
-    amount_text = f" for {amount['amount']} {amount['currency']}" if amount else ""
-    return f"I've drafted a proposal: {pending['summary_title']}{amount_text}. Approve or reject it below."
+    return f"I've drafted a proposal: {pending['summary_title']}. Review the amount and evidence, then approve or reject it."
 
 
 def _last_assistant_text(messages: list[Any]) -> str:
     for message in reversed(messages):
-        if isinstance(message, AIMessage) and not message.tool_calls and message.content:
-            return message.content if isinstance(message.content, str) else str(message.content)
+        if isinstance(message, AIMessage) and not message.tool_calls and message_text(message.content):
+            return message_text(message.content)
     return ""
 
 
@@ -103,9 +102,9 @@ class AgentService:
         out: list[dict[str, str]] = []
         for message in values.get("messages", []):
             if isinstance(message, HumanMessage) and (message.additional_kwargs or {}).get("kind") == "user":
-                out.append({"role": "user", "content": str(message.content)})
-            elif isinstance(message, AIMessage) and not message.tool_calls and message.content:
-                out.append({"role": "assistant", "content": str(message.content)})
+                out.append({"role": "user", "content": message_text(message.content)})
+            elif isinstance(message, AIMessage) and not message.tool_calls and message_text(message.content):
+                out.append({"role": "assistant", "content": message_text(message.content)})
         return out
 
     def _to_result(self, result: dict[str, Any]) -> TurnResult:

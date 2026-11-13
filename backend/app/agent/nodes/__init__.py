@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from app.agent.prompts import FALLBACK_UNGROUNDED, REFUSALS, SYSTEM_PROMPT
 from app.agent.state import AgentState
+from app.agent.text import message_text
 from app.domain.models import DomainError, Ledger
 from app.guardrails.grounding import check_grounding
 from app.guardrails.injection import detect_injection
@@ -49,10 +50,8 @@ def _kind(message: AnyMessage) -> str | None:
 
 
 def _text(message: AnyMessage) -> str:
-    content = message.content
-    if isinstance(content, list):
-        return "".join(part.get("text", "") for part in content if isinstance(part, dict))
-    return str(content)
+    """Text of a message, ignoring thinking and other non-text blocks."""
+    return message_text(message.content)
 
 
 def current_turn(messages: list[AnyMessage]) -> list[AnyMessage]:
@@ -79,17 +78,24 @@ def make_nodes(deps: AgentDeps, bound_llm: Any) -> dict[str, Callable[[AgentStat
     """Build the node functions bound to these dependencies. Input: deps, the LLM with tools bound."""
 
     def guard(state: AgentState) -> dict:
-        """Refuse injections and off-topic turns before any tool or model call. Resets the turn counters."""
+        """Refuse injections, off-topic turns and turns the classifier cannot check, before any tool or model call.
+
+        Fails closed: if the classifier errors, the turn is refused rather than allowed through.
+        """
         text = _text(state["messages"][-1])
         reason: str | None = None
         if detect_injection(text):
             reason = "injection"
         elif deps.classifier is not None:
-            verdict = deps.classifier(text)
-            if verdict.injection:
-                reason = "injection"
-            elif not verdict.on_topic:
-                reason = "off_topic"
+            try:
+                verdict = deps.classifier(text)
+            except Exception:  # fail closed: an unchecked message is never sent to the tools
+                reason = "unavailable"
+            else:
+                if verdict.injection:
+                    reason = "injection"
+                elif not verdict.on_topic:
+                    reason = "off_topic"
         if reason:
             return {"guard_blocked": True, "steps": 0, "retries": 0,
                     "messages": [AIMessage(content=REFUSALS[reason])]}

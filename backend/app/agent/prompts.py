@@ -18,6 +18,7 @@ Context for this turn: as-of date {as_of}; plan in focus: {plan}.
 """
 
 REFUSALS: dict[str, str] = {
+    "unavailable": "I can't check this message right now, so I haven't acted on it. Please try again shortly.",
     "injection": "I can't follow instructions that change my role, reveal my configuration, or apply changes without your approval. I can help with plans, invoices, credit memos and revenue leakage.",
     "off_topic": "I can only help with billing plans, invoices, credit memos, plan amendments, FX rates and revenue leakage in this workspace.",
 }
