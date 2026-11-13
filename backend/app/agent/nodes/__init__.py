@@ -62,6 +62,20 @@ def current_turn(messages: list[AnyMessage]) -> list[AnyMessage]:
     return messages
 
 
+def _previous_assistant_text(messages: list[AnyMessage], limit: int = 600) -> str:
+    """Text of the assistant message just before the current user message, truncated.
+
+    A short user reply such as "yes" only makes sense in the context of this message, so the
+    guard needs it. Tool traffic is skipped.
+    """
+    for message in reversed(messages[:-1]):
+        if isinstance(message, AIMessage) and not getattr(message, "tool_calls", None):
+            text = _text(message)
+            if text:
+                return text[-limit:]
+    return ""
+
+
 def _ctx(state: AgentState, deps: AgentDeps, pending: dict | None) -> ToolContext:
     return ToolContext(
         user_id=state["user_id"],
@@ -88,7 +102,7 @@ def make_nodes(deps: AgentDeps, bound_llm: Any) -> dict[str, Callable[[AgentStat
             reason = "injection"
         elif deps.classifier is not None:
             try:
-                verdict = deps.classifier(text)
+                verdict = deps.classifier(text, _previous_assistant_text(state["messages"]))
             except Exception:  # fail closed: an unchecked message is never sent to the tools
                 reason = "unavailable"
             else:
@@ -171,9 +185,11 @@ def make_nodes(deps: AgentDeps, bound_llm: Any) -> dict[str, Callable[[AgentStat
         One regeneration is allowed. If the figures are still unsupported, the draft is replaced with a safe fallback.
         """
         last = state["messages"][-1]
-        turn = current_turn(state["messages"])
-        tool_texts = [_text(m) for m in turn if isinstance(m, ToolMessage) or _kind(m) == "gate"]
-        user_texts = [_text(m) for m in turn if isinstance(m, HumanMessage) and _kind(m) == "user"][-1:]
+        # Evidence is the whole conversation, not just this turn: a follow-up such as "what was the
+        # shortfall again?" may restate a figure a tool returned earlier in the same thread.
+        history = state["messages"]
+        tool_texts = [_text(m) for m in history if isinstance(m, ToolMessage) or _kind(m) == "gate"]
+        user_texts = [_text(m) for m in history if isinstance(m, HumanMessage) and _kind(m) == "user"]
         unsupported = check_grounding(_text(last), tool_texts, user_texts)
         if not unsupported:
             return {}

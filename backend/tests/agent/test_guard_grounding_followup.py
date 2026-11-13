@@ -32,7 +32,7 @@ async def test_system_prompt_extraction_is_refused(tmp_path):
 
 async def test_off_topic_is_refused_by_the_semantic_guard(tmp_path):
     """A classifier verdict of off-topic refuses the turn before the model runs."""
-    classifier = lambda text: Verdict(on_topic=False, injection=False, reason="poem request")
+    classifier = lambda text, previous: Verdict(on_topic=False, injection=False, reason="poem request")
     service, _, llm, _ = build(tmp_path, [], classifier=classifier)
     result = await service.send("t-off", "alice", "Write me a poem about the sea")
     assert result.status == "blocked"
@@ -42,7 +42,7 @@ async def test_off_topic_is_refused_by_the_semantic_guard(tmp_path):
 
 async def test_on_topic_message_passes_the_guard(tmp_path):
     """An on-topic message with a clean verdict reaches the model."""
-    classifier = lambda text: Verdict(on_topic=True, injection=False)
+    classifier = lambda text, previous: Verdict(on_topic=True, injection=False)
     service, _, llm, _ = build(tmp_path, [say("Hello, how can I help with billing?")], classifier=classifier)
     result = await service.send("t-ok", "alice", "Hi")
     assert result.status == "answered"
@@ -105,7 +105,7 @@ async def test_history_shows_user_and_assistant_turns_only(tmp_path):
 
 async def test_classifier_failure_fails_closed(tmp_path):
     """If the classifier errors, the turn is refused and nothing reaches the model or the tools."""
-    def broken(_text):
+    def broken(_text, _previous):
         raise RuntimeError("classifier timeout")
 
     service, _, llm, _ = build(tmp_path, [], classifier=broken)
@@ -129,3 +129,59 @@ async def test_thinking_blocks_never_reach_the_user(tmp_path):
     history = await service.history("t-think")
     assert history[-1]["content"] == "C-1001 is a USD plan."
     assert "SIG123" not in result.reply
+
+
+def _context_aware(text, previous):
+    """Stand-in classifier: a message about a plan is on topic; a short reply is on topic only in context."""
+    return Verdict(on_topic=("plan" in text.lower()) or bool(previous), injection=False)
+
+
+async def test_yes_answering_the_agents_question_is_not_refused(tmp_path):
+    """Regression: 'yes' to 'Do you want me to propose it?' must reach the agent and draft the make-good."""
+    script = [
+        tool_call("investigate_plan", {"plan_id": "C-1010"}, "c1"),
+        say("C-1010 is short by 20000.00 USD. Do you want me to propose a make-good?"),
+        tool_call("propose_make_good_invoice", {"plan_id": "C-1010"}, "c2"),
+        say("I've drafted it. Approve or reject below."),
+    ]
+    service, _, llm, _ = build(tmp_path, script, classifier=_context_aware)
+    await service.send("t-yes", "alice", "Check plan C-1010 for revenue leakage.")
+    result = await service.send("t-yes", "alice", "yes")
+    assert result.status == "awaiting_approval"
+    assert result.pending["amount"] == {"amount": "20000.00", "currency": "USD"}
+
+
+async def test_bare_yes_with_no_earlier_question_is_still_refused(tmp_path):
+    """Without a previous assistant message, 'yes' has no topic, so the guard still refuses it."""
+    service, _, llm, _ = build(tmp_path, [], classifier=_context_aware)
+    result = await service.send("t-bare", "alice", "yes")
+    assert result.status == "blocked" and llm.seen == []
+
+
+async def test_classifier_receives_the_previous_assistant_message(tmp_path):
+    """The guard passes the last assistant answer to the classifier, so short replies can be judged in context."""
+    seen = []
+
+    def recording(text, previous):
+        seen.append((text, previous))
+        return Verdict(on_topic=True, injection=False)
+
+    script = [say("Plan C-1010 is short. Propose a make-good?"), say("Done.")]
+    service, _, _, _ = build(tmp_path, script, classifier=recording)
+    await service.send("t-ctx", "alice", "Check C-1010")
+    await service.send("t-ctx", "alice", "yes")
+    assert seen[-1] == ("yes", "Plan C-1010 is short. Propose a make-good?")
+
+
+async def test_follow_up_may_restate_a_figure_from_earlier_in_the_conversation(tmp_path):
+    """A figure a tool returned in an earlier turn is valid evidence for a follow-up answer (no rewrite needed)."""
+    script = [
+        tool_call("investigate_plan", {"plan_id": "C-1010"}, "c1"),
+        say("Plan C-1010 is short by 20000.00 USD. Want a make-good?"),
+        say("The shortfall is 20000.00 USD."),
+    ]
+    service, _, llm, _ = build(tmp_path, script)
+    await service.send("t-restate", "alice", "Check plan C-1010")
+    result = await service.send("t-restate", "alice", "What was the shortfall again?")
+    assert result.reply == "The shortfall is 20000.00 USD."
+    assert len(llm.seen) == 3  # investigate, first answer, follow-up answer: no regeneration
